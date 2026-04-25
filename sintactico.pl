@@ -7,21 +7,31 @@
 % ORACION
 % ---------------------------------------------------------
 
-oracion(o(GN, GV)) --> gn(GN), gv(GV).
-
+oracion(o(suj(GN), pred(GV))) --> gn(GN), gv(GV).
 % ---------------------------------------------------------
 % GRUPO NOMINAL
 % ---------------------------------------------------------
 
-gn(gn(N)) --> nombre(N).
-gn(gn(Det, N)) --> determinante(Det), nombre(N).
-gn(gn(Det, Adj, N)) --> determinante(Det), adjetivo(Adj), nombre(N).
-gn(gn(N1, N2)) --> nombre(N1), nombre(N2).
-gn(gn(Det, N1, N2)) --> determinante(Det), nombre(N1), nombre(N2).
-gn(gn(Det, N, GP)) --> determinante(Det), nombre(N), gp(GP).
-gn(gn(Det, Adj, N, GP)) --> determinante(Det), adjetivo(Adj), nombre(N), gp(GP).
-gn(gn(N, GP)) --> nombre(N), gp(GP).
-gn(gn(Det, N, OrRel)) --> determinante(Det), nombre(N), or_rel(OrRel).
+gn(GN) --> gn_simple(GN).
+gn(gn_coord(GN1, Conj, GN2)) --> gn_simple(GN1), conjuncion(Conj), gn_simple(GN2).
+
+gn_simple(gn(N)) --> nombre(N).
+gn_simple(gn(Det, N)) --> determinante(Det), nombre(N).
+gn_simple(gn(Det, Adj, N)) --> determinante(Det), adjetivo(Adj), nombre(N).
+gn_simple(gn(Det, N, Adj)) --> determinante(Det), nombre(N), adjetivo(Adj).
+gn_simple(gn(N1, N2)) --> nombre(N1), nombre(N2).
+gn_simple(gn(Det, N1, N2)) --> determinante(Det), nombre(N1), nombre(N2).
+gn_simple(gn(Det, N, GP)) --> determinante(Det), nombre(N), gp(GP).
+gn_simple(gn(Det, Adj, N, GP)) --> determinante(Det), adjetivo(Adj), nombre(N), gp(GP).
+gn_simple(gn(N, GP)) --> nombre(N), gp(GP).
+gn_simple(gn(Det, N, OrRel)) --> determinante(Det), nombre(N), or_rel(OrRel).
+gn_simple(gn(Det, Adj, N, GP, Participio, GP2)) -->
+    determinante(Det), adjetivo(Adj), nombre(N), gp(GP), participio(Participio), gp(GP2).
+gn_simple(gn(Det, N, GP, Participio, GP2)) -->
+    determinante(Det), nombre(N), gp(GP), participio(Participio), gp(GP2).
+gn_simple(gn(N1, N2, N3, Conj, N4)) -->
+    nombre(N1), nombre(N2), nombre(N3), conjuncion(Conj), nombre(N4).
+
 
 % ---------------------------------------------------------
 % GRUPO VERBAL
@@ -35,12 +45,13 @@ gv(gv(V, GN1, Conj, V2)) --> verbo(V), gn(GN1), conjuncion(Conj), verbo(V2).
 gv(gv(V1, Conj, V2, GN)) --> verbo(V1), conjuncion(Conj), verbo(V2), gn(GN).
 gv(gv(V1, Conj, V2, Adv, GP)) --> verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv), gp(GP).
 gv(gv(V1, Conj, V2, Adv)) --> verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv).
-gv(gv(V1, V2, GP)) --> verbo_compuesto(V1, V2), gp(GP).
-gv(gv(V1, V2, GN, GP)) --> verbo_compuesto(V1, V2), gn(GN), gp(GP).
-gv(gv(V1, V2, GN)) --> verbo_compuesto(V1, V2), gn(GN).
+gv(gv(VC, GP)) --> verbo_compuesto(VC), gp(GP).
+gv(gv(VC, GN, GP)) --> verbo_compuesto(VC), gn(GN), gp(GP).
+gv(gv(VC, GN)) --> verbo_compuesto(VC), gn(GN).
 gv(gv(V, Participio, GP)) --> verbo(V), participio(Participio), gp(GP).
 gv(gv(V, Participio)) --> verbo(V), participio(Participio).
-
+gv(gv(V1, GN, Conj, V2, Adv, GP)) -->
+    verbo(V1), gn(GN), conjuncion(Conj), verbo(V2), adverbio(Adv), gp(GP).
 % ---------------------------------------------------------
 % GRUPO PREPOSICIONAL
 % ---------------------------------------------------------

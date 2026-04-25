@@ -1,5 +1,6 @@
 :- consult(conjunto_oraciones).
 :- consult(sintactico).
+:- use_module(draw).
 
 analizar_id(Id, Arbol) :-
     oracion_corpus(Id, Tokens),
