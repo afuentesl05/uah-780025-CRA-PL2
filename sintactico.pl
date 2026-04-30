@@ -7,8 +7,50 @@
 % ---------------------------------------------------------
 % ORACION
 % ---------------------------------------------------------
+%
+% La oracion se organiza por niveles para poder clasificar
+% despues segun la estructura reconocida:
+% - o(...)   : oracion simple
+% - oc(...)  : oracion coordinada
+% - or(...)  : oracion con subordinada de relativo
+% - ocm(...) : oracion compuesta
+%
+% Se evita la recursion izquierda: las coordinadas se forman
+% siempre a partir de oraciones simples o de un sujeto compartido
+% con dos grupos verbales simples.
+% ---------------------------------------------------------
 
-oracion(o(suj(GN), pred(GV))) --> gn(GN), gv(GV).
+oracion(Arbol) -->
+    oracion_compuesta(Arbol).
+
+oracion(Arbol) -->
+    oracion_coordinada(Arbol).
+
+oracion(Arbol) -->
+    oracion_relativo(Arbol).
+
+oracion(Arbol) -->
+    oracion_simple(Arbol).
+
+oracion_simple(o(suj(GN), pred(GV))) -->
+    gn(GN), gv_simple(GV).
+
+oracion_coordinada(oc(O1, Conj, O2)) -->
+    oracion_simple(O1), conj_coord(Conj), oracion_simple(O2).
+
+oracion_coordinada(oc(o(suj(GN), pred(GV1)), Conj, o(suj(GN), pred(GV2)))) -->
+    gn(GN), gv_simple(GV1), conj_coord(Conj), gv_simple(GV2).
+
+oracion_relativo(or(O)) -->
+    oracion_simple(O),
+    { contiene_relativo(O) }.
+
+oracion_compuesta(ocm(OC)) -->
+    oracion_coordinada(OC),
+    { contiene_relativo(OC) }.
+
+conj_coord(conj(y)) -->
+    [y].
 
 % =========================================================
 % GRUPO NOMINAL (GN)
@@ -145,55 +187,64 @@ verbo_compuesto(vc(V1, V2)) -->
 %----------------------------------------------------------
 
 % ---------------------------------------------------------
+% GV PRINCIPAL
+% ---------------------------------------------------------
+
+gv(GV) -->
+    gv_simple(GV).
+
+gv(GV) -->
+    gv_coordinado(GV).
+
+% ---------------------------------------------------------
 % GV SIMPLES
 % ---------------------------------------------------------
 
-gv(gv(V)) -->
+gv_simple(gv(V)) -->
     verbo(V).
 
-gv(gv(V, GN)) -->
+gv_simple(gv(V, GN)) -->
     verbo(V), gn(GN).
 
-gv(gv(V, GP)) -->
+gv_simple(gv(V, GP)) -->
     verbo(V), gp_verbal(V, GP).
 
-gv(gv(V, GN, GP)) -->
+gv_simple(gv(V, GN, GP)) -->
     verbo(V), gn(GN), gp_verbal(V, GP).
+
+gv_simple(gv(V, Adv)) -->
+    verbo(V), adverbio(Adv).
+
+gv_simple(gv(V, Adv, GP)) -->
+    verbo(V), adverbio(Adv), gp_verbal(V, GP).
 
 % ---------------------------------------------------------
 % GV CON VERBO COMPUESTO
 % ---------------------------------------------------------
 
-gv(gv(VC)) -->
+gv_simple(gv(VC)) -->
     verbo_compuesto(VC).
 
-gv(gv(VC, GN)) -->
+gv_simple(gv(VC, GN)) -->
     verbo_compuesto(VC), gn(GN).
 
-gv(gv(VC, GP)) -->
+gv_simple(gv(VC, GP)) -->
     verbo_compuesto(VC), gp_verbal(VC, GP).
 
-gv(gv(VC, GN, GP)) -->
+gv_simple(gv(VC, GN, GP)) -->
     verbo_compuesto(VC), gn(GN), gp_verbal(VC, GP).
 
 % ---------------------------------------------------------
 % GV COORDINADOS
 % ---------------------------------------------------------
+%
+% Esta regla permite reconocer una coordinacion interna de GV
+% cuando se consulte gv//1 directamente. La clasificacion como
+% oracion coordinada se hace en oracion_coordinada//1.
+% ---------------------------------------------------------
 
-gv(gv(V, GN1, Conj, V2)) -->
-    verbo(V), gn(GN1), conjuncion(Conj), verbo(V2).
-
-gv(gv(V1, Conj, V2, GN)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), gn(GN).
-
-gv(gv(V1, Conj, V2, Adv)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv).
-
-gv(gv(V1, Conj, V2, Adv, GP)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv), gp_verbal(V2, GP).
-
-gv(gv(V1, GN, Conj, V2, Adv, GP)) -->
-    verbo(V1), gn(GN), conjuncion(Conj), verbo(V2), adverbio(Adv), gp_verbal(V2, GP).
+gv_coordinado(gv_coord(GV1, Conj, GV2)) -->
+    gv_simple(GV1), conj_coord(Conj), gv_simple(GV2).
 
 % =========================================================
 % GRUPO PREPOSICIONAL (GP)
@@ -260,6 +311,53 @@ or_rel(or_rel(Rel, GV)) -->
     relativo(Rel), gv(GV).
 
 % =========================================================
+% CLASIFICACION Y SIMPLIFICACION
+% =========================================================
+
+tipo_oracion(Tokens, Tipo, Arbol) :-
+    phrase(oracion(Arbol), Tokens),
+    !,
+    tipo_arbol(Arbol, Tipo).
+
+tipo_oracion(_, no_reconocida, no_reconocida).
+
+tipo_arbol(ocm(_), compuesta) :-
+    !.
+
+tipo_arbol(Arbol, compuesta) :-
+    Arbol = oc(_, _, _),
+    contiene_relativo(Arbol),
+    !.
+
+tipo_arbol(oc(_, _, _), coordinada) :-
+    !.
+
+tipo_arbol(or(_), relativo) :-
+    !.
+
+tipo_arbol(Arbol, relativo) :-
+    Arbol = o(_, _),
+    contiene_relativo(Arbol),
+    !.
+
+tipo_arbol(o(_, _), simple).
+
+simplificar(ocm(OC), Simples) :-
+    !,
+    simplificar(OC, Simples).
+
+simplificar(oc(O1, _, O2), [O1, O2]) :-
+    !.
+
+simplificar(or(O), [O]) :-
+    !.
+
+simplificar(O, [O]).
+
+contiene_relativo(Arbol) :-
+    sub_term(or_rel(_, _), Arbol).
+
+% =========================================================
 % LEXICO
 % =========================================================
 
@@ -303,6 +401,10 @@ verbo(v(representa)) --> [representa].
 verbo(v(aumenta)) --> [aumenta].
 verbo(v(dividen)) --> [dividen].
 verbo(v(se)) --> [se].
+verbo(v(come)) --> [come].
+verbo(v(bebe)) --> [bebe].
+verbo(v(comen)) --> [comen].
+verbo(v(estudia)) --> [estudia].
 
 % ---------------------------------------------------------
 % PARTICIPIOS
@@ -334,6 +436,7 @@ preposicion(prep(de)) --> [de].
 preposicion(prep(del)) --> [del].
 preposicion(prep(a)) --> [a].
 preposicion(prep(en)) --> [en].
+preposicion(prep(con)) --> [con].
 
 % ---------------------------------------------------------
 % CONJUNCIONES
@@ -380,6 +483,13 @@ nombre(n(sonidos)) --> [sonidos].
 nombre(n(lineas)) --> [lineas].
 nombre(n(espacios)) --> [espacios].
 nombre(n(otro)) --> [otro].
+nombre(n(jose)) --> [jose].
+nombre(n(maria)) --> [maria].
+nombre(n(juan)) --> [juan].
+nombre(n(filosofia)) --> [filosofia].
+nombre(n(derecho)) --> [derecho].
+nombre(n(tenedor)) --> [tenedor].
+nombre(n(cuchillo)) --> [cuchillo].
 
 % ---------------------------------------------------------
 % SIGNOS DE PUNTUACION
