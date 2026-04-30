@@ -15,3 +15,7 @@ probar_todas :-
     ),
     fail.
 probar_todas.
+
+
+analizar_tokens(Tokens, Arbol) :-
+    phrase(oracion(Arbol), Tokens).
