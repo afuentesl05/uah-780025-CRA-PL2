@@ -3,11 +3,11 @@
 :- use_module(draw).
 
 analizar_id(Id, Arbol) :-
-    oracion_corpus(Id, Tokens),
+    oracion(Id, Tokens),
     phrase(oracion(Arbol), Tokens).
 
 probar_todas :-
-    oracion_corpus(Id, Tokens),
+    oracion(Id, Tokens),
     ( phrase(oracion(Arbol), Tokens) ->
         write('OK -> '), write(Id), write(' : '), write(Arbol), nl
     ;
