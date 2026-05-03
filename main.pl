@@ -1,6 +1,7 @@
 :- consult(conjunto_oraciones).
 :- consult(sintactico).
 :- use_module(draw).
+:- consult(adaptador_draw).
 
 analizar_id(Id, Arbol) :-
     oracion(Id, Tokens),

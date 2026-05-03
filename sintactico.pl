@@ -1,239 +1,638 @@
 % =========================================================
 % ANALIZADOR SINTACTICO
-% Corpus inicial de 10 frases
-% Version reorganizada y limpiada
+% Archivo: sintactico.pl
+%
+% Contiene:
+% - reglas DCG sintacticas
+% - restricciones lexico-sintacticas
+% - clasificacion de oraciones
+% - simplificacion recursiva
+% - separacion de relativas
+%
+% El lexico se carga desde lexico.pl
 % =========================================================
 
-% ---------------------------------------------------------
+:- ensure_loaded('lexico.pl').
+
+% =========================================================
 % ORACION
-% ---------------------------------------------------------
-
-oracion(o(suj(GN), pred(GV))) --> gn(GN), gv(GV).
-
-% =========================================================
-% GRUPO NOMINAL (GN)
-% =========================================================
-%
-% Idea general:
-% - Primero definimos GN nucleares / basicos.
-% - Despues GN extendidos con GP, relativo o GAdj.
-% - Finalmente GN coordinados y enumeraciones.
-%
 % =========================================================
 
-% ---------------------------------------------------------
-% GN PRINCIPAL
-% ---------------------------------------------------------
+oracion(O) -->
+    oracion_simple(O).
 
-gn(GN) --> gn_completo(GN).
-gn(gn_coord(GN1, Conj, GN2)) -->
-    gn_completo(GN1), conjuncion(Conj), gn_completo(GN2).
+oracion(O) -->
+    oracion_coordinada(O).
 
 % ---------------------------------------------------------
-% GN NUCLEAR
-% ---------------------------------------------------------
-%
-% Son GN que pueden aparecer por si solos, sin coordinacion.
-% Incluyen:
-% - GN basicos
-% - GN extendidos con GP
-% - GN con relativo
-% - GN con grupo adjetival
-% - GN enumerativos
+% ORACION SIMPLE
 % ---------------------------------------------------------
 
-gn_completo(GN) --> gn_basico(GN).
+oracion_simple(o(suj(impersonal), pred(GV))) -->
+    gv_existencial(GV).
 
-gn_completo(gn(Det, N, GP)) -->
-    determinante(Det), nombre(N), gp_nominal(N, GP).
-
-gn_completo(gn(Det, Adj, N, GP)) -->
-    determinante(Det), adjetivo(Adj), nombre(N), gp_nominal(N, GP).
-
-gn_completo(gn(N, GP)) -->
-    nombre(N), gp_nominal(N, GP).
-
-gn_completo(gn(Det, N, GP1, GP2)) -->
-    determinante(Det), nombre(N), gp_nominal(N, GP1), gp_nominal(N, GP2).
-
-gn_completo(gn(Det, N, OrRel)) -->
-    determinante(Det), nombre(N), or_rel(OrRel).
-
-gn_completo(gn(Det, Adj, N, GP, GAdj)) -->
-    determinante(Det), adjetivo(Adj), nombre(N), gp_nominal(N, GP), gadj(GAdj).
-
-gn_completo(gn(Det, N, GP, GAdj)) -->
-    determinante(Det), nombre(N), gp_nominal(N, GP), gadj(GAdj).
-
-gn_completo(gn(Num, DP, Enum)) -->
-    numeral(Num), dos_puntos(DP), enumeracion_nominal(Enum).
+oracion_simple(o(suj(GN), pred(GV))) -->
+    gn(GN),
+    gv_no_coord(GV).
 
 % ---------------------------------------------------------
-% GN BASICO
+% ORACION COORDINADA
 % ---------------------------------------------------------
 %
-% Estructuras simples del grupo nominal.
+% Caso 1:
+%   Coordinacion de dos o mas oraciones completas.
+%
+% Caso 2:
+%   Coordinacion de dos o mas predicados con sujeto compartido.
+%
+% =========================================================
+
+oracion_coordinada(OC) -->
+    oracion_simple(O1),
+    conj_coord(Conj),
+    cola_oraciones_coordinadas(O1, Conj, OC).
+
+oracion_coordinada(
+    oc(o(suj(GN), pred(GV1)), Conj, O2)
+) -->
+    gn(GN),
+    gv_no_coord(GV1),
+    conj_coord(Conj),
+    cola_predicados_coordinados(GN, O2).
+
+cola_oraciones_coordinadas(O1, Conj, oc(O1, Conj, O2)) -->
+    oracion_simple(O2).
+
+cola_oraciones_coordinadas(O1, Conj1, oc(O1, Conj1, OC2)) -->
+    oracion_simple(O2),
+    conj_coord(Conj2),
+    cola_oraciones_coordinadas(O2, Conj2, OC2).
+
+cola_predicados_coordinados(
+    GN,
+    oc(o(suj(GN), pred(GV)), Conj, O2)
+) -->
+    gv_no_coord(GV),
+    conj_coord(Conj),
+    cola_predicados_coordinados(GN, O2).
+
+cola_predicados_coordinados(
+    GN,
+    o(suj(GN), pred(GV))
+) -->
+    gv_no_coord(GV).
+
+% =========================================================
+% GRUPO NOMINAL
+% =========================================================
+%
+% Representacion:
+%
+%   gn(Base, Extensiones)
+%
+% =========================================================
+
+gn(GN) -->
+    gn_coordinable(GN).
+
+gn_coordinable(gn_coord(GN1, Conj, GN2)) -->
+    gn_no_coord(GN1),
+    conj_coord(Conj),
+    gn_no_coord(GN2).
+
+gn_coordinable(GN) -->
+    gn_no_coord(GN).
+
+gn_no_coord(gn(Base, Exts)) -->
+    gn_nucleo(Nucleo, Base),
+    extensiones_nominales(Nucleo, Exts),
+    { extensiones_nominales_validas(Exts) }.
+
+% ---------------------------------------------------------
+% NUCLEO NOMINAL
 % ---------------------------------------------------------
 
-gn_basico(gn(N)) -->
-    nombre(N).
+gn_nucleo(NLex, base(N)) -->
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Det, N)) -->
-    determinante(Det), nombre(N).
+gn_nucleo(NLex, base(Det, N)) -->
+    determinante(Det),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Det, Adj, N)) -->
-    determinante(Det), adjetivo(Adj), nombre(N).
+gn_nucleo(NLex, base(Det, Adj, N)) -->
+    determinante(Det),
+    adjetivo(Adj),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Det, N, Adj)) -->
-    determinante(Det), nombre(N), adjetivo(Adj).
+gn_nucleo(NLex, base(Det, N, Adj)) -->
+    determinante(Det),
+    nombre(N),
+    adjetivo(Adj),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(N, Adj)) -->
-    nombre(N), adjetivo(Adj).
+gn_nucleo(NLex, base(Adj, N)) -->
+    adjetivo(Adj),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(N1, N2)) -->
-    nombre(N1), nombre(N2).
+gn_nucleo(NLex, base(N, Adj)) -->
+    nombre(N),
+    adjetivo(Adj),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Det, N1, N2)) -->
-    determinante(Det), nombre(N1), nombre(N2).
+gn_nucleo(NLex, base(N1, N2)) -->
+    nombre(N1),
+    nombre(N2),
+    { nombre_lexema(N2, NLex) }.
 
-% ---------------------------------------------------------
-% GN CUANTIFICADOS Y NUMERALES
-% ---------------------------------------------------------
+gn_nucleo(NLex, base(Det, N1, N2)) -->
+    determinante(Det),
+    nombre(N1),
+    nombre(N2),
+    { nombre_lexema(N2, NLex) }.
 
-gn_basico(gn(Cuant, Det, N)) -->
-    cuantificador(Cuant), determinante(Det), nombre(N).
+gn_nucleo(NLex, base(Cuant, Det, N)) -->
+    cuantificador(Cuant),
+    determinante(Det),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Cuant, N)) -->
-    cuantificador(Cuant), nombre(N).
+gn_nucleo(NLex, base(Cuant, N)) -->
+    cuantificador(Cuant),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Num, N)) -->
-    numeral(Num), nombre(N).
+gn_nucleo(NLex, base(Num, N)) -->
+    numeral(Num),
+    nombre(N),
+    { nombre_lexema(N, NLex) }.
 
-gn_basico(gn(Num)) -->
+gn_nucleo(none, base(Num)) -->
     numeral(Num).
 
 % ---------------------------------------------------------
-% ENUMERACION NOMINAL
+% EXTENSIONES NOMINALES
 % ---------------------------------------------------------
+
+extensiones_nominales(Nucleo, [Ext|Resto]) -->
+    extension_nominal(Nucleo, Ext),
+    extensiones_nominales(Nucleo, Resto).
+
+extensiones_nominales(_, []) -->
+    [].
+
+extension_nominal(Nucleo, gp(GP)) -->
+    gp_nominal(Nucleo, GP).
+
+extension_nominal(_, or(OR)) -->
+    or_rel(OR).
+
+extension_nominal(_, gadj(GAdj)) -->
+    gadj(GAdj).
+
+extension_nominal(_, enum(DP, Enum)) -->
+    dos_puntos(DP),
+    enumeracion_general(Enum).
+
+% ---------------------------------------------------------
+% VALIDACION DE EXTENSIONES NOMINALES
+% ---------------------------------------------------------
+
+extensiones_nominales_validas(Exts) :-
+    ext_counts(Exts, NumOr, NumGAdj, NumEnum),
+    NumOr =< 1,
+    NumGAdj =< 1,
+    NumEnum =< 1,
+    enum_al_final(Exts).
+
+ext_counts([], 0, 0, 0).
+
+ext_counts([Ext|R], NumOr, NumGAdj, NumEnum) :-
+    ext_counts(R, OrR, GAdjR, EnumR),
+    ext_increment(Ext, DOr, DGAdj, DEnum),
+    NumOr is OrR + DOr,
+    NumGAdj is GAdjR + DGAdj,
+    NumEnum is EnumR + DEnum.
+
+ext_increment(gp(_), 0, 0, 0).
+ext_increment(or(_), 1, 0, 0).
+ext_increment(gadj(_), 0, 1, 0).
+ext_increment(enum(_, _), 0, 0, 1).
+
+enum_al_final([]).
+
+enum_al_final([enum(_, _)]).
+
+enum_al_final([Ext|R]) :-
+    Ext \= enum(_, _),
+    enum_al_final(R).
+
+% =========================================================
+% ENUMERACIONES GENERALES
+% =========================================================
 %
-% Ejemplo:
-% tres : sol , fa y do
-% ---------------------------------------------------------
+% Se usan en:
+%
+%   Las llaves son tres: sol, fa y do.
+%   Hay dos clases de compases: pares e impares.
+%
+% =========================================================
 
-enumeracion_nominal(enum(N, Resto)) -->
-    nombre(N), resto_enumeracion(Resto).
+enumeracion_general(enum(Elem, Tail)) -->
+    elemento_enumeracion(Elem),
+    cola_enumeracion(Tail).
 
-resto_enumeracion(ultimo(Conj, N)) -->
-    conjuncion(Conj), nombre(N).
+cola_enumeracion(fin) -->
+    [].
 
-resto_enumeracion(sig(Coma, N, Resto)) -->
-    coma(Coma), nombre(N), resto_enumeracion(Resto).
+cola_enumeracion(seg(Sep, Elem, Tail)) -->
+    separador_enumeracion(Sep),
+    elemento_enumeracion(Elem),
+    cola_enumeracion(Tail).
+
+separador_enumeracion(coma(C)) -->
+    coma(C).
+
+separador_enumeracion(conj(Conj)) -->
+    conj_coord(Conj).
+
+elemento_enumeracion(elem_gn(GN)) -->
+    gn_no_coord(GN).
+
+elemento_enumeracion(elem_gadj(GAdj)) -->
+    gadj(GAdj).
+
+elemento_enumeracion(elem_adj(Adj)) -->
+    adjetivo(Adj).
+
+elemento_enumeracion(elem_etc(Etc)) -->
+    etcetera(Etc).
 
 % =========================================================
-% GRUPO VERBAL (GV)
+% ENUMERACIONES PREPOSICIONALES
 % =========================================================
 %
-% Se distinguen:
-% - GV simples
-% - GV con verbo compuesto
-% - GV coordinados
+% Se usan cuando una enumeracion aparece como termino de una
+% preposicion.
+%
+% Solo se aceptan si terminan en "etc".
+%
+% Se permite:
+%
+%   de dos, tres o cuatro tiempos, etc
+%   de unisono, segunda, tercera, etc
+%
+% Se evita aceptar la frase 18:
+%
+%   en segunda linea, la llave de fa en cuarta linea, ...
+%
 % =========================================================
 
-% DEFINICION VERBO COMPUESTO
-verbo_compuesto(vc(V1, V2)) -->
-    verbo(V1), verbo(V2).
-%----------------------------------------------------------
+enumeracion_preposicional(enum(Elem, Tail)) -->
+    elemento_enumeracion_no_etc(Elem),
+    cola_enumeracion_preposicional(Tail).
+
+cola_enumeracion_preposicional(seg(Sep, elem_etc(Etc), fin)) -->
+    separador_enumeracion(Sep),
+    etcetera(Etc).
+
+cola_enumeracion_preposicional(seg(Sep, Elem, Tail)) -->
+    separador_enumeracion(Sep),
+    elemento_enumeracion_no_etc(Elem),
+    cola_enumeracion_preposicional(Tail).
+
+elemento_enumeracion_no_etc(elem_gn(GN)) -->
+    gn_no_coord(GN).
+
+elemento_enumeracion_no_etc(elem_gadj(GAdj)) -->
+    gadj(GAdj).
+
+elemento_enumeracion_no_etc(elem_adj(Adj)) -->
+    adjetivo(Adj).
+
+% =========================================================
+% GRUPO VERBAL
+% =========================================================
+%
+% Representacion:
+%
+%   gv(PreAdvs, Nucleo, Complementos)
+%
+% =========================================================
+
+gv(GV) -->
+    gv_coordinable(GV).
+
+gv_coordinable(gv_coord(GV1, Conj, GV2)) -->
+    gv_no_coord(GV1),
+    conj_coord(Conj),
+    gv_no_coord(GV2).
+
+gv_coordinable(GV) -->
+    gv_no_coord(GV).
+
+gv_no_coord(gv(PreAdvs, Nucleo, Compls)) -->
+    adverbiales_preverbales(PreAdvs),
+    nucleo_verbal(Nucleo),
+    complementos_verbales(Nucleo, Compls),
+    { complementos_verbales_validos(Nucleo, Compls) }.
 
 % ---------------------------------------------------------
-% GV SIMPLES
+% GV EXISTENCIAL
 % ---------------------------------------------------------
 
-gv(gv(V)) -->
+gv_existencial(gv([], v(hay), [gn(GN)])) -->
+    [hay],
+    gn(GN).
+
+% ---------------------------------------------------------
+% ADVERBIALES PREVERBALES
+% ---------------------------------------------------------
+
+adverbiales_preverbales([GAdv|Resto]) -->
+    gadv(GAdv),
+    adverbiales_preverbales(Resto).
+
+adverbiales_preverbales([]) -->
+    [].
+
+% ---------------------------------------------------------
+% NUCLEO VERBAL
+% ---------------------------------------------------------
+
+nucleo_verbal(V) -->
     verbo(V).
 
-gv(gv(V, GN)) -->
-    verbo(V), gn(GN).
-
-gv(gv(V, GP)) -->
-    verbo(V), gp_verbal(V, GP).
-
-gv(gv(V, GN, GP)) -->
-    verbo(V), gn(GN), gp_verbal(V, GP).
-
-% ---------------------------------------------------------
-% GV CON VERBO COMPUESTO
-% ---------------------------------------------------------
-
-gv(gv(VC)) -->
+nucleo_verbal(VC) -->
     verbo_compuesto(VC).
 
-gv(gv(VC, GN)) -->
-    verbo_compuesto(VC), gn(GN).
-
-gv(gv(VC, GP)) -->
-    verbo_compuesto(VC), gp_verbal(VC, GP).
-
-gv(gv(VC, GN, GP)) -->
-    verbo_compuesto(VC), gn(GN), gp_verbal(VC, GP).
-
 % ---------------------------------------------------------
-% GV COORDINADOS
+% VERBO COMPUESTO
 % ---------------------------------------------------------
 
-gv(gv(V, GN1, Conj, V2)) -->
-    verbo(V), gn(GN1), conjuncion(Conj), verbo(V2).
+verbo_compuesto(vc(VAux, V)) -->
+    verbo_aux(VAux),
+    verbo(V).
 
-gv(gv(V1, Conj, V2, GN)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), gn(GN).
+verbo_aux(v(se)) -->
+    [se].
 
-gv(gv(V1, Conj, V2, Adv)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv).
+% ---------------------------------------------------------
+% COMPLEMENTOS VERBALES
+% ---------------------------------------------------------
 
-gv(gv(V1, Conj, V2, Adv, GP)) -->
-    verbo(V1), conjuncion(Conj), verbo(V2), adverbio(Adv), gp_verbal(V2, GP).
+complementos_verbales(_, [Comp|Resto]) -->
+    complemento_verbal(Comp),
+    complementos_verbales(_, Resto).
 
-gv(gv(V1, GN, Conj, V2, Adv, GP)) -->
-    verbo(V1), gn(GN), conjuncion(Conj), verbo(V2), adverbio(Adv), gp_verbal(V2, GP).
+complementos_verbales(_, []) -->
+    [].
 
-% =========================================================
-% GRUPO PREPOSICIONAL (GP)
-% =========================================================
+complemento_verbal(gn(GN)) -->
+    gn(GN).
 
-gp(gp(Prep, GN)) -->
-    preposicion(Prep), gn(GN).
+complemento_verbal(gp(GP)) -->
+    gp(GP).
 
-gp_nominal(Nucleo, GP) -->
-    gp(GP),
-    { gp_valido_nominal(Nucleo, GP) }.
+complemento_verbal(gadj(GAdj)) -->
+    gadj(GAdj).
 
-gp_verbal(Verbo, GP) -->
-    gp(GP),
-    { gp_valido_verbal(Verbo, GP) }.
+complemento_verbal(gadv(GAdv)) -->
+    gadv(GAdv).
 
-gp_valido_nominal(Nucleo, gp(Prep, _)) :-
-    nombre_lexema(Nucleo, Nombre),
-    prep_lexema(Prep, PrepAtom),
-    admite_gp_nominal(Nombre, PrepAtom).
+% ---------------------------------------------------------
+% VALIDACION DE COMPLEMENTOS VERBALES
+% ---------------------------------------------------------
 
-gp_valido_verbal(Verbo, gp(Prep, _)) :-
-    verbo_lexema(Verbo, VerboAtom),
+complementos_verbales_validos(Nucleo, Compls) :-
+    tipos_complementos(Compls, Tipos),
+    patron_tipos_complementos(Tipos),
+    gps_validos_para_verbo(Nucleo, Compls).
+
+tipos_complementos([], []).
+
+tipos_complementos([C|R], [T|TR]) :-
+    tipo_complemento(C, T),
+    tipos_complementos(R, TR).
+
+tipo_complemento(gn(_), gn).
+tipo_complemento(gp(_), gp).
+tipo_complemento(gadj(_), gadj).
+tipo_complemento(gadv(_), gadv).
+
+patron_tipos_complementos(Tipos) :-
+    gadv_prefix(Tipos, R1),
+    opt_prefix(gn, R1, R2),
+    gp_prefix(R2, R3),
+    opt_prefix(gadj, R3, []).
+
+gadv_prefix([gadv|R], Rest) :-
+    !,
+    gadv_prefix(R, Rest).
+
+gadv_prefix(Rest, Rest).
+
+opt_prefix(T, [T|R], R) :-
+    !.
+
+opt_prefix(_, R, R).
+
+gp_prefix([gp|R], Rest) :-
+    !,
+    gp_prefix(R, Rest).
+
+gp_prefix(Rest, Rest).
+
+gps_validos_para_verbo(_, []).
+
+gps_validos_para_verbo(Nucleo, [Comp|R]) :-
+    gp_valido_si_procede(Nucleo, Comp),
+    gps_validos_para_verbo(Nucleo, R).
+
+gp_valido_si_procede(_, gn(_)).
+gp_valido_si_procede(_, gadj(_)).
+gp_valido_si_procede(_, gadv(_)).
+
+gp_valido_si_procede(Nucleo, gp(GP)) :-
+    gp_valido_verbal_estructura(Nucleo, GP).
+
+gp_valido_verbal_estructura(Nucleo, gp(Prep, _)) :-
+    verbo_lexema(Nucleo, VerboAtom),
     prep_lexema(Prep, PrepAtom),
     admite_gp_verbal(VerboAtom, PrepAtom).
 
+gp_valido_verbal_estructura(Nucleo, gp_coord(GP1, _, GP2)) :-
+    gp_valido_verbal_estructura(Nucleo, GP1),
+    gp_valido_verbal_estructura(Nucleo, GP2).
+
 % =========================================================
-% RESTRICCIONES LEXICO-SINTACTICAS DE GP
+% GRUPO PREPOSICIONAL
 % =========================================================
 
-admite_gp_nominal(sucesion, de).
-admite_gp_nominal(conjunto, de).
-admite_gp_nominal(mitad, del).
-admite_gp_nominal(distancia, de).
-admite_gp_nominal(distancia, a).
-admite_gp_nominal(porcion, de).
+gp(GP) -->
+    gp_coordinable(GP).
 
-admite_gp_verbal(aumenta, a).
-admite_gp_verbal(dividen, en).
-admite_gp_verbal(valen, a).
+gp_coordinable(gp_coord(GP1, Conj, GP2)) -->
+    gp_simple(GP1),
+    conj_coord(Conj),
+    gp_simple(GP2).
+
+gp_coordinable(GP) -->
+    gp_simple(GP).
+
+gp_simple(gp(Prep, Term)) -->
+    preposicion(Prep),
+    termino_preposicional(Term).
+
+termino_preposicional(gn(GN)) -->
+    gn(GN).
+
+termino_preposicional(enum(Enum)) -->
+    enumeracion_preposicional(Enum).
+
+termino_preposicional(ocm(GVInf)) -->
+    gv_infinitivo(GVInf).
+
+% ---------------------------------------------------------
+% GP NOMINAL
+% ---------------------------------------------------------
+
+gp_nominal(Nucleo, GP) -->
+    gp(GP),
+    { gp_valido_nominal_estructura(Nucleo, GP) }.
+
+gp_valido_nominal_estructura(Nucleo, gp(Prep, _)) :-
+    Nucleo \= none,
+    prep_lexema(Prep, PrepAtom),
+    admite_gp_nominal(Nucleo, PrepAtom).
+
+gp_valido_nominal_estructura(Nucleo, gp_coord(GP1, _, GP2)) :-
+    gp_valido_nominal_estructura(Nucleo, GP1),
+    gp_valido_nominal_estructura(Nucleo, GP2).
+
+% =========================================================
+% CONSTRUCCION INFINITIVA / COMPUESTA
+% =========================================================
+
+gv_infinitivo(gv_inf(V, Compls)) -->
+    verbo(V),
+    complementos_verbales(V, Compls),
+    { complementos_verbales_validos(V, Compls) }.
+
+% =========================================================
+% RESTRICCIONES LEXICO-SINTACTICAS
+% =========================================================
+
+% ---------------------------------------------------------
+% CLASES NOMINALES
+% ---------------------------------------------------------
+
+clase_nominal(sucesion, relacional_de).
+clase_nominal(conjunto, relacional_de).
+clase_nominal(porcion, relacional_de).
+clase_nominal(sinonimo, relacional_de).
+clase_nominal(nombres, relacional_de).
+clase_nominal(acepcion, relacional_de).
+clase_nominal(valor, relacional_de).
+clase_nominal(clases, relacional_de).
+
+clase_nominal(reglas, finalidad).
+
+clase_nominal(distancia, origen_destino).
+
+clase_nominal(mitad, contraccion_del).
+
+clase_nominal(llave, clave_musical).
+clase_nominal(llaves, clave_musical).
+
+% ---------------------------------------------------------
+% COMPATIBILIDAD NOMINAL POR CLASE
+% ---------------------------------------------------------
+
+admite_gp_nominal_clase(relacional_de, de).
+
+admite_gp_nominal_clase(finalidad, para).
+
+admite_gp_nominal_clase(origen_destino, de).
+admite_gp_nominal_clase(origen_destino, a).
+
+admite_gp_nominal_clase(contraccion_del, del).
+
+admite_gp_nominal_clase(clave_musical, de).
+admite_gp_nominal_clase(clave_musical, en).
+
+% ---------------------------------------------------------
+% ENTRADA PUBLICA PARA GP NOMINALES
+% ---------------------------------------------------------
+
+admite_gp_nominal(Nucleo, Prep) :-
+    clase_nominal(Nucleo, Clase),
+    admite_gp_nominal_clase(Clase, Prep).
+
+admite_gp_nominal(Nucleo, Prep) :-
+    admite_gp_nominal_directo(Nucleo, Prep).
+
+admite_gp_nominal_directo(_, _) :-
+    fail.
+
+% ---------------------------------------------------------
+% CLASES VERBALES
+% ---------------------------------------------------------
+
+clase_verbal(aumenta, cambio_valor).
+
+clase_verbal(dividen, clasificacion).
+clase_verbal(resultan, relacion_resultado).
+
+clase_verbal(compone, composicion).
+
+clase_verbal(sirve, finalidad).
+
+clase_verbal(valen, equivalencia).
+
+clase_verbal(toman, denominacion).
+clase_verbal(toma, denominacion).
+
+% ---------------------------------------------------------
+% COMPATIBILIDAD VERBAL POR CLASE
+% ---------------------------------------------------------
+
+admite_gp_verbal_clase(cambio_valor, a).
+admite_gp_verbal_clase(cambio_valor, al).
+
+admite_gp_verbal_clase(clasificacion, en).
+
+admite_gp_verbal_clase(relacion_resultado, entre).
+
+admite_gp_verbal_clase(composicion, de).
+
+admite_gp_verbal_clase(finalidad, para).
+
+admite_gp_verbal_clase(equivalencia, a).
+
+admite_gp_verbal_clase(denominacion, de).
+admite_gp_verbal_clase(denominacion, como).
+
+% ---------------------------------------------------------
+% ENTRADA PUBLICA PARA GP VERBALES
+% ---------------------------------------------------------
+
+admite_gp_verbal(Verbo, Prep) :-
+    clase_verbal(Verbo, Clase),
+    admite_gp_verbal_clase(Clase, Prep).
+
+admite_gp_verbal(Verbo, Prep) :-
+    admite_gp_verbal_directo(Verbo, Prep).
+
+admite_gp_verbal_directo(_, _) :-
+    fail.
+
+% ---------------------------------------------------------
+% EXTRACCION DE LEXEMAS
+% ---------------------------------------------------------
 
 nombre_lexema(n(X), X).
 
@@ -243,147 +642,160 @@ verbo_lexema(vc(_, v(X)), X).
 prep_lexema(prep(X), X).
 
 % =========================================================
-% GRUPO ADJETIVAL (GADJ)
+% GRUPO ADJETIVAL
 % =========================================================
 
 gadj(gadj(Adj)) -->
     adjetivo(Adj).
 
+gadj(gadj(GAdv, Adj)) -->
+    gadv(GAdv),
+    adjetivo(Adj).
+
 gadj(gadj(Participio, GP)) -->
-    participio(Participio), gp(GP).
+    participio(Participio),
+    gp_simple(GP).
 
 % =========================================================
-% ORACION DE RELATIVO SIMPLE
+% GRUPO ADVERBIAL
 % =========================================================
 
-or_rel(or_rel(Rel, GV)) -->
-    relativo(Rel), gv(GV).
+gadv(gadv(Adv)) -->
+    adverbio(Adv).
 
 % =========================================================
-% LEXICO
+% ORACION DE RELATIVO
 % =========================================================
 
-% ---------------------------------------------------------
-% DETERMINANTES
-% ---------------------------------------------------------
+or_rel(or(Rel, GV)) -->
+    relativo(Rel),
+    gv(GV).
 
-determinante(det(el)) --> [el].
-determinante(det(la)) --> [la].
-determinante(det(los)) --> [los].
-determinante(det(las)) --> [las].
-determinante(det(un)) --> [un].
-determinante(det(una)) --> [una].
+% =========================================================
+% CONJUNCION COORDINANTE
+% =========================================================
 
-% ---------------------------------------------------------
-% CUANTIFICADORES
-% ---------------------------------------------------------
+conj_coord(Conj) -->
+    conjuncion(Conj).
 
-cuantificador(cuant(todas)) --> [todas].
-cuantificador(cuant(varios)) --> [varios].
+% =========================================================
+% CLASIFICACION DE ORACIONES
+% =========================================================
 
-% ---------------------------------------------------------
-% NUMERALES
-% ---------------------------------------------------------
+tipo_oracion(Tokens, Tipo, Arbol) :-
+    phrase(oracion(Arbol), Tokens),
+    clasificar_arbol(Arbol, Tipo),
+    !.
 
-numeral(num(tres)) --> [tres].
-numeral(num(cuatro)) --> [cuatro].
-numeral(num(cinco)) --> [cinco].
-numeral(num(siete)) --> [siete].
+tipo_oracion(_, no_reconocida, none).
 
-% ---------------------------------------------------------
-% VERBOS
-% ---------------------------------------------------------
+clasificar_arbol(oc(_, _, _), coordinada) :-
+    !.
 
-verbo(v(es)) --> [es].
-verbo(v(son)) --> [son].
-verbo(v(tiene)) --> [tiene].
-verbo(v(tienen)) --> [tienen].
-verbo(v(valen)) --> [valen].
-verbo(v(representa)) --> [representa].
-verbo(v(aumenta)) --> [aumenta].
-verbo(v(dividen)) --> [dividen].
-verbo(v(se)) --> [se].
+clasificar_arbol(Arbol, compuesta) :-
+    contiene_compuesta(Arbol),
+    !.
 
-% ---------------------------------------------------------
-% PARTICIPIOS
-% ---------------------------------------------------------
+clasificar_arbol(o(_, _), simple).
 
-participio(part(dividida)) --> [dividida].
+contiene_compuesta(Term) :-
+    sub_term(or(_, _), Term).
 
-% ---------------------------------------------------------
-% ADJETIVOS
-% ---------------------------------------------------------
+contiene_compuesta(Term) :-
+    sub_term(ocm(_), Term).
 
-adjetivo(adj(acertada)) --> [acertada].
-adjetivo(adj(musicales)) --> [musicales].
-adjetivo(adj(anterior)) --> [anterior].
-adjetivo(adj(pequena)) --> [pequena].
-adjetivo(adj(iguales)) --> [iguales].
+% =========================================================
+% SIMPLIFICACION RECURSIVA
+% =========================================================
+
+simplificar(oc(O1, _, O2), Simples) :-
+    !,
+    simplificar(O1, S1),
+    simplificar(O2, S2),
+    concatenar(S1, S2, Simples).
+
+simplificar(O, Simples) :-
+    extraer_relativas(O, Relativas),
+    quitar_relativas_term(O, Principal),
+    concatenar(Relativas, [Principal], Simples).
 
 % ---------------------------------------------------------
-% ADVERBIOS
+% EXTRACCION DE RELATIVAS
 % ---------------------------------------------------------
 
-adverbio(adv(igual)) --> [igual].
+extraer_relativas(Term, Relativas) :-
+    findall(
+        OracionRelativa,
+        (
+            sub_term(GN, Term),
+            relativa_de_gn(GN, OracionRelativa)
+        ),
+        Relativas
+    ).
+
+relativa_de_gn(gn(Base, Exts), OracionRelativa) :-
+    pertenece(or(or(_, GVRel)), Exts),
+    quitar_relativas_term(gn(Base, Exts), GNSujeto),
+    quitar_relativas_term(GVRel, GVRelLimpio),
+    OracionRelativa = o(suj(GNSujeto), pred(GVRelLimpio)).
 
 % ---------------------------------------------------------
-% PREPOSICIONES
+% ELIMINACION DE RELATIVAS EN TERMINOS
 % ---------------------------------------------------------
 
-preposicion(prep(de)) --> [de].
-preposicion(prep(del)) --> [del].
-preposicion(prep(a)) --> [a].
-preposicion(prep(en)) --> [en].
+quitar_relativas_term(Var, Var) :-
+    var(Var),
+    !.
 
-% ---------------------------------------------------------
-% CONJUNCIONES
-% ---------------------------------------------------------
+quitar_relativas_term([], []) :-
+    !.
 
-conjuncion(conj(y)) --> [y].
+quitar_relativas_term([X|Xs], [Y|Ys]) :-
+    !,
+    quitar_relativas_term(X, Y),
+    quitar_relativas_term(Xs, Ys).
 
-% ---------------------------------------------------------
-% RELATIVOS
-% ---------------------------------------------------------
+quitar_relativas_term(gn(Base, Exts), gn(BaseLimpia, ExtsLimpias)) :-
+    !,
+    quitar_relativas_term(Base, BaseLimpia),
+    quitar_relativas_extensiones(Exts, ExtsLimpias).
 
-relativo(rel(que)) --> [que].
+quitar_relativas_term(Term, Term) :-
+    atomic(Term),
+    !.
 
-% ---------------------------------------------------------
-% NOMBRES
-% ---------------------------------------------------------
+quitar_relativas_term(Term, TermLimpio) :-
+    compound(Term),
+    Term =.. [Functor|Args],
+    quitar_relativas_argumentos(Args, ArgsLimpios),
+    TermLimpio =.. [Functor|ArgsLimpios].
 
-nombre(n(melodia)) --> [melodia].
-nombre(n(armonia)) --> [armonia].
-nombre(n(pentagrama)) --> [pentagrama].
-nombre(n(notas)) --> [notas].
-nombre(n(figuras)) --> [figuras].
-nombre(n(silencio)) --> [silencio].
-nombre(n(figura)) --> [figura].
-nombre(n(puntillo)) --> [puntillo].
-nombre(n(mitad)) --> [mitad].
-nombre(n(valor)) --> [valor].
-nombre(n(intervalo)) --> [intervalo].
-nombre(n(distancia)) --> [distancia].
-nombre(n(sonido)) --> [sonido].
-nombre(n(llaves)) --> [llaves].
-nombre(n(sol)) --> [sol].
-nombre(n(fa)) --> [fa].
-nombre(n(do)) --> [do].
-nombre(n(instrumentos)) --> [instrumentos].
-nombre(n(clases)) --> [clases].
-nombre(n(compas)) --> [compas].
-nombre(n(porcion)) --> [porcion].
-nombre(n(tiempo)) --> [tiempo].
-nombre(n(partes)) --> [partes].
-nombre(n(sucesion)) --> [sucesion].
-nombre(n(conjunto)) --> [conjunto].
-nombre(n(sonidos)) --> [sonidos].
-nombre(n(lineas)) --> [lineas].
-nombre(n(espacios)) --> [espacios].
-nombre(n(otro)) --> [otro].
+quitar_relativas_argumentos([], []).
 
-% ---------------------------------------------------------
-% SIGNOS DE PUNTUACION
-% ---------------------------------------------------------
+quitar_relativas_argumentos([A|As], [AL|ALs]) :-
+    quitar_relativas_term(A, AL),
+    quitar_relativas_argumentos(As, ALs).
 
-dos_puntos(dp(':')) --> [':'].
-coma(c(',')) --> [','].
+quitar_relativas_extensiones([], []).
+
+quitar_relativas_extensiones([or(_)|R], Limpias) :-
+    !,
+    quitar_relativas_extensiones(R, Limpias).
+
+quitar_relativas_extensiones([Ext|R], [ExtLimpia|RLimpias]) :-
+    quitar_relativas_term(Ext, ExtLimpia),
+    quitar_relativas_extensiones(R, RLimpias).
+
+% =========================================================
+% UTILIDADES BASICAS DE LISTAS
+% =========================================================
+
+concatenar([], L, L).
+
+concatenar([X|Xs], L, [X|R]) :-
+    concatenar(Xs, L, R).
+
+pertenece(X, [X|_]).
+
+pertenece(X, [_|R]) :-
+    pertenece(X, R).
