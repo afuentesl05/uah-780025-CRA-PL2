@@ -95,18 +95,20 @@ cola_predicados_coordinados(
 gn(GN) -->
     gn_coordinable(GN).
 
+gn_coordinable(GN) -->
+    gn_no_coord(GN).
+
 gn_coordinable(gn_coord(GN1, Conj, GN2)) -->
     gn_no_coord(GN1),
     conj_coord(Conj),
     gn_no_coord(GN2).
 
-gn_coordinable(GN) -->
-    gn_no_coord(GN).
-
 gn_no_coord(gn(Base, Exts)) -->
     gn_nucleo(Nucleo, Base),
     extensiones_nominales(Nucleo, Exts),
     { extensiones_nominales_validas(Exts) }.
+
+
 
 % ---------------------------------------------------------
 % NUCLEO NOMINAL
@@ -525,48 +527,121 @@ gv_infinitivo(gv_inf(V, Compls)) -->
 % =========================================================
 % RESTRICCIONES LEXICO-SINTACTICAS
 % =========================================================
+%
+% Estas reglas controlan que no cualquier nombre o verbo
+% pueda combinarse con cualquier preposicion.
+%
+% La idea es agrupar los nombres y verbos en clases
+% semantico-sintacticas, para evitar escribir una regla
+% aislada para cada frase del corpus.
+%
+% =========================================================
 
-% ---------------------------------------------------------
+
+% =========================================================
 % CLASES NOMINALES
+% =========================================================
+
+% ---------------------------------------------------------
+% Nombres que admiten complementos con "de" o "del"
 % ---------------------------------------------------------
 
-clase_nominal(sucesion, relacional_de).
-clase_nominal(conjunto, relacional_de).
-clase_nominal(porcion, relacional_de).
-clase_nominal(sinonimo, relacional_de).
-clase_nominal(nombres, relacional_de).
-clase_nominal(acepcion, relacional_de).
-clase_nominal(valor, relacional_de).
-clase_nominal(clases, relacional_de).
+
+clase_nominal(sucesion, relacional_de_del).
+clase_nominal(conjunto, relacional_de_del).
+clase_nominal(porcion, relacional_de_del).
+clase_nominal(sinonimo, relacional_de_del).
+clase_nominal(nombres, relacional_de_del).
+clase_nominal(nombre, relacional_de_del).
+clase_nominal(acepcion, relacional_de_del).
+clase_nominal(valor, relacional_de_del).
+clase_nominal(clases, relacional_de_del).
+clase_nominal(notas, relacional_de_del).
+clase_nominal(silencio, relacional_de_del).
+clase_nominal(pasos, relacional_de_del).
+clase_nominal(nota, relacional_de_del).
+
+% ---------------------------------------------------------
+% Nombres que admiten complementos de finalidad con "para"
+% ---------------------------------------------------------
 
 clase_nominal(reglas, finalidad).
 
+% ---------------------------------------------------------
+% Nombres de distancia u origen/destino
+% ---------------------------------------------------------
+
 clase_nominal(distancia, origen_destino).
 
+% ---------------------------------------------------------
+% Nombre que aparece con la contraccion "del"
+% ---------------------------------------------------------
+
 clase_nominal(mitad, contraccion_del).
+
+% ---------------------------------------------------------
+% Nombres asociados a llaves musicales
+% ---------------------------------------------------------
 
 clase_nominal(llave, clave_musical).
 clase_nominal(llaves, clave_musical).
 
 % ---------------------------------------------------------
-% COMPATIBILIDAD NOMINAL POR CLASE
+% Nombres de elementos musicales localizables
 % ---------------------------------------------------------
 
-admite_gp_nominal_clase(relacional_de, de).
+
+clase_nominal(notas, localizable_en).
+
+
+% =========================================================
+% COMPATIBILIDAD NOMINAL POR CLASE
+% =========================================================
+
+% ---------------------------------------------------------
+% Complementos relacionales con "de" y "del"
+% ---------------------------------------------------------
+
+admite_gp_nominal_clase(relacional_de_del, de).
+admite_gp_nominal_clase(relacional_de_del, del).
+
+% ---------------------------------------------------------
+% Complementos de finalidad
+% ---------------------------------------------------------
 
 admite_gp_nominal_clase(finalidad, para).
 
+% ---------------------------------------------------------
+% Complementos de origen, destino o relacion entre elementos
+% ---------------------------------------------------------
+
 admite_gp_nominal_clase(origen_destino, de).
 admite_gp_nominal_clase(origen_destino, a).
+admite_gp_nominal_clase(origen_destino, entre).
+
+% ---------------------------------------------------------
+% Complemento con contraccion "del"
+% ---------------------------------------------------------
 
 admite_gp_nominal_clase(contraccion_del, del).
+
+% ---------------------------------------------------------
+% Complementos propios de llaves musicales
+% ---------------------------------------------------------
 
 admite_gp_nominal_clase(clave_musical, de).
 admite_gp_nominal_clase(clave_musical, en).
 
 % ---------------------------------------------------------
-% ENTRADA PUBLICA PARA GP NOMINALES
+% Complementos locativos con "en"
 % ---------------------------------------------------------
+
+admite_gp_nominal_clase(localizable_en, en).
+
+
+% =========================================================
+% ENTRADA PUBLICA PARA GP NOMINALES
+% =========================================================
 
 admite_gp_nominal(Nucleo, Prep) :-
     clase_nominal(Nucleo, Clase),
@@ -575,50 +650,165 @@ admite_gp_nominal(Nucleo, Prep) :-
 admite_gp_nominal(Nucleo, Prep) :-
     admite_gp_nominal_directo(Nucleo, Prep).
 
+% Compatibilidades directas excepcionales.
+% Se dejan aqui para poder ampliar sin tocar las clases.
+
 admite_gp_nominal_directo(_, _) :-
     fail.
 
-% ---------------------------------------------------------
+
+% =========================================================
 % CLASES VERBALES
+% =========================================================
+
+% ---------------------------------------------------------
+% Verbos de cambio de valor
 % ---------------------------------------------------------
 
 clase_verbal(aumenta, cambio_valor).
 
+% ---------------------------------------------------------
+% Verbos de clasificacion
+% ---------------------------------------------------------
+
 clase_verbal(dividen, clasificacion).
+
+% ---------------------------------------------------------
+% Verbos de resultado o relacion entre elementos
+% ---------------------------------------------------------
+
 clase_verbal(resultan, relacion_resultado).
+
+% ---------------------------------------------------------
+% Verbos de composicion
+% ---------------------------------------------------------
 
 clase_verbal(compone, composicion).
 
+% ---------------------------------------------------------
+% Verbos de finalidad o uso
+% ---------------------------------------------------------
+
 clase_verbal(sirve, finalidad).
+clase_verbal(usa, finalidad).
+
+% ---------------------------------------------------------
+% Verbos de equivalencia
+% ---------------------------------------------------------
 
 clase_verbal(valen, equivalencia).
+
+% ---------------------------------------------------------
+% Verbos de denominacion
+% ---------------------------------------------------------
 
 clase_verbal(toman, denominacion).
 clase_verbal(toma, denominacion).
 
 % ---------------------------------------------------------
+% Verbos de correspondencia
+% ---------------------------------------------------------
+
+clase_verbal(corresponden, correspondencia).
+
+% ---------------------------------------------------------
+% Verbos de union o enlace
+% ---------------------------------------------------------
+
+
+clase_verbal(une, enlace).
+
+% ---------------------------------------------------------
+% Verbos de fijacion o ubicacion
+% ---------------------------------------------------------
+
+
+clase_verbal(fijar, ubicacion).
+
+% ---------------------------------------------------------
+% Verbo "servir" con complemento "de"
+% ---------------------------------------------------------
+
+
+clase_verbal(sirve, funcion).
+
+
+% =========================================================
 % COMPATIBILIDAD VERBAL POR CLASE
+% =========================================================
+
+% ---------------------------------------------------------
+% Cambio de valor
 % ---------------------------------------------------------
 
 admite_gp_verbal_clase(cambio_valor, a).
 admite_gp_verbal_clase(cambio_valor, al).
 
+% ---------------------------------------------------------
+% Clasificacion
+% ---------------------------------------------------------
+
 admite_gp_verbal_clase(clasificacion, en).
+
+% ---------------------------------------------------------
+% Resultado o relacion entre elementos
+% ---------------------------------------------------------
 
 admite_gp_verbal_clase(relacion_resultado, entre).
 
+% ---------------------------------------------------------
+% Composicion
+% ---------------------------------------------------------
+
 admite_gp_verbal_clase(composicion, de).
+
+% ---------------------------------------------------------
+% Finalidad o uso
+% ---------------------------------------------------------
 
 admite_gp_verbal_clase(finalidad, para).
 
+% ---------------------------------------------------------
+% Equivalencia
+% ---------------------------------------------------------
+
 admite_gp_verbal_clase(equivalencia, a).
+
+% ---------------------------------------------------------
+% Denominacion
+% ---------------------------------------------------------
 
 admite_gp_verbal_clase(denominacion, de).
 admite_gp_verbal_clase(denominacion, como).
 
 % ---------------------------------------------------------
-% ENTRADA PUBLICA PARA GP VERBALES
+% Correspondencia
 % ---------------------------------------------------------
+
+admite_gp_verbal_clase(correspondencia, a).
+
+% ---------------------------------------------------------
+% Union o enlace
+% ---------------------------------------------------------
+
+admite_gp_verbal_clase(enlace, a).
+
+% ---------------------------------------------------------
+% Ubicacion o fijacion
+% ---------------------------------------------------------
+
+admite_gp_verbal_clase(ubicacion, en).
+
+% ---------------------------------------------------------
+% Funcion
+% ---------------------------------------------------------
+
+admite_gp_verbal_clase(funcion, de).
+
+
+% =========================================================
+% ENTRADA PUBLICA PARA GP VERBALES
+% =========================================================
 
 admite_gp_verbal(Verbo, Prep) :-
     clase_verbal(Verbo, Clase),
@@ -627,9 +817,11 @@ admite_gp_verbal(Verbo, Prep) :-
 admite_gp_verbal(Verbo, Prep) :-
     admite_gp_verbal_directo(Verbo, Prep).
 
+% Compatibilidades directas excepcionales.
+% Se dejan aqui para poder ampliar sin tocar las clases.
+
 admite_gp_verbal_directo(_, _) :-
     fail.
-
 % ---------------------------------------------------------
 % EXTRACCION DE LEXEMAS
 % ---------------------------------------------------------
@@ -659,9 +851,57 @@ gadj(gadj(Participio, GP)) -->
 % =========================================================
 % GRUPO ADVERBIAL
 % =========================================================
+%
+% Se reconocen dos tipos:
+%
+% 1. Grupo adverbial locativo:
+%
+%      debajo de las lineas
+%
+% 2. Grupo adverbial simple:
+%
+%      bien
+%      tambien
+%      igual
+%      ordinariamente
+%      muy
+% =========================================================
+
+gadv(gadv_loc(Adv, GP)) -->
+    adverbio_locativo(Adv),
+    gp_locativo(GP).
 
 gadv(gadv(Adv)) -->
     adverbio(Adv).
+
+% ---------------------------------------------------------
+% GP LOCATIVO
+% ---------------------------------------------------------
+%
+% Complemento del adverbio locativo.
+%
+% Se permite:
+%
+%   de + GN
+%   del + GN
+%
+% Ejemplos:
+%
+%   debajo de las lineas
+%   debajo del pentagrama
+%
+% =========================================================
+
+gp_locativo(gp(Prep, gn(GN))) -->
+    preposicion_locativa(Prep),
+    gn(GN).
+
+preposicion_locativa(Prep) -->
+    preposicion(Prep),
+    { prep_locativa(Prep) }.
+
+prep_locativa(prep(de)).
+prep_locativa(prep(del)).
 
 % =========================================================
 % ORACION DE RELATIVO
