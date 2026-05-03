@@ -6,16 +6,10 @@
 % con draw.pl.
 %
 % Reglas de visualizacion:
-% - Las listas vacias [] se eliminan.
+% - Las listas vacias [] se eliminan visualmente.
 % - Las listas con un solo elemento [X] se muestran como X.
 % - Las listas con varios elementos [A,B,C] se muestran como lista(A,B,C).
-% - Las enumeraciones se compactan:
-%
-%     enum(elem_gn(sol), seg(coma, elem_gn(fa), seg(conj(y), elem_gn(do), fin)))
-%
-%   se dibuja como:
-%
-%     enum(sol, fa, do)
+% - Las enumeraciones se compactan.
 %
 % Esto no cambia el arbol sintactico real. Solo cambia su
 % representacion visual para draw.pl.
@@ -49,11 +43,11 @@ arbol_para_draw([X|Xs], TerminoLista) :-
 % ENUMERACION CON DOS PUNTOS
 % ---------------------------------------------------------
 %
-% Caso:
+% Caso real:
 %
 %   enum(dp(:), enum(...))
 %
-% Se compacta visualmente a:
+% Se dibuja como:
 %
 %   enum(E1, E2, E3, ...)
 %
@@ -69,11 +63,11 @@ arbol_para_draw(enum(DP, Enum), EnumDraw) :-
 % ENUMERACION INTERNA
 % ---------------------------------------------------------
 %
-% Caso:
+% Caso real:
 %
 %   enum(Elem, Tail)
 %
-% Se compacta visualmente a:
+% Se dibuja como:
 %
 %   enum(E1, E2, E3, ...)
 %
@@ -97,9 +91,6 @@ arbol_para_draw(Termino, TerminoDraw) :-
 
 % =========================================================
 % TRANSFORMACION DE ARGUMENTOS
-% =========================================================
-%
-% Aqui se eliminan visualmente los argumentos que sean [].
 % =========================================================
 
 transformar_argumentos_draw([], []).

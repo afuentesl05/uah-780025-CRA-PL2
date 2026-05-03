@@ -167,6 +167,12 @@ gn_nucleo(NLex, base(Cuant, N)) -->
     nombre(N),
     { nombre_lexema(N, NLex) }.
 
+gn_nucleo(NLex, base(Num, N, Adj)) -->
+    numeral(Num),
+    nombre(N),
+    adjetivo(Adj),
+    { nombre_lexema(N, NLex) }.
+
 gn_nucleo(NLex, base(Num, N)) -->
     numeral(Num),
     nombre(N),
@@ -193,7 +199,7 @@ extension_nominal(_, or(OR)) -->
     or_rel(OR).
 
 extension_nominal(_, gadj(GAdj)) -->
-    gadj(GAdj).
+    gadj_extension(GAdj).
 
 extension_nominal(_, enum(DP, Enum)) -->
     dos_puntos(DP),
@@ -241,19 +247,25 @@ enum_al_final([Ext|R]) :-
 %   Las llaves son tres: sol, fa y do.
 %   Hay dos clases de compases: pares e impares.
 %
+% Los adjetivos de enumeracion se representan siempre como
+% grupos adjetivales:
+%
+%   pares      -> elem_gadj(gadj(adj(pares)))
+%   muy breves -> elem_gadj(gadj(gadv(adv(muy)), adj(breves)))
+%
 % =========================================================
 
 enumeracion_general(enum(Elem, Tail)) -->
     elemento_enumeracion(Elem),
     cola_enumeracion(Tail).
 
-cola_enumeracion(fin) -->
-    [].
-
 cola_enumeracion(seg(Sep, Elem, Tail)) -->
     separador_enumeracion(Sep),
     elemento_enumeracion(Elem),
     cola_enumeracion(Tail).
+
+cola_enumeracion(fin, Tokens, Tokens) :-
+    \+ phrase(separador_enumeracion(_), Tokens, _).
 
 separador_enumeracion(coma(C)) -->
     coma(C).
@@ -265,14 +277,21 @@ elemento_enumeracion(elem_gn(GN)) -->
     gn_no_coord(GN).
 
 elemento_enumeracion(elem_gadj(GAdj)) -->
-    gadj(GAdj).
-
-elemento_enumeracion(elem_adj(Adj)) -->
-    adjetivo(Adj).
+    gadj_enumeracion(GAdj).
 
 elemento_enumeracion(elem_etc(Etc)) -->
     etcetera(Etc).
 
+% ---------------------------------------------------------
+% GRUPOS ADJETIVALES DENTRO DE ENUMERACIONES
+% ---------------------------------------------------------
+
+gadj_enumeracion(gadj(Adj)) -->
+    adjetivo(Adj).
+
+gadj_enumeracion(gadj(GAdv, Adj)) -->
+    gadv(GAdv),
+    adjetivo(Adj).
 % =========================================================
 % ENUMERACIONES PREPOSICIONALES
 % =========================================================
@@ -310,10 +329,7 @@ elemento_enumeracion_no_etc(elem_gn(GN)) -->
     gn_no_coord(GN).
 
 elemento_enumeracion_no_etc(elem_gadj(GAdj)) -->
-    gadj(GAdj).
-
-elemento_enumeracion_no_etc(elem_adj(Adj)) -->
-    adjetivo(Adj).
+    gadj_enumeracion(GAdj).
 
 % =========================================================
 % GRUPO VERBAL
@@ -386,24 +402,26 @@ verbo_aux(v(se)) -->
 % COMPLEMENTOS VERBALES
 % ---------------------------------------------------------
 
-complementos_verbales(_, [Comp|Resto]) -->
-    complemento_verbal(Comp),
-    complementos_verbales(_, Resto).
+complementos_verbales(Nucleo, [Comp|Resto]) -->
+    complemento_verbal(Nucleo, Comp),
+    complementos_verbales(Nucleo, Resto).
 
 complementos_verbales(_, []) -->
     [].
 
-complemento_verbal(gn(GN)) -->
+complemento_verbal(_, gn(GN)) -->
     gn(GN).
 
-complemento_verbal(gp(GP)) -->
+complemento_verbal(_, gp(GP)) -->
     gp(GP).
 
-complemento_verbal(gadj(GAdj)) -->
-    gadj(GAdj).
+complemento_verbal(_, gadj(GAdj)) -->
+    gadj_verbal(GAdj).
 
-complemento_verbal(gadv(GAdv)) -->
+complemento_verbal(_, gadv(GAdv)) -->
     gadv(GAdv).
+
+
 
 % ---------------------------------------------------------
 % VALIDACION DE COMPLEMENTOS VERBALES
@@ -845,6 +863,60 @@ gadj(gadj(GAdv, Adj)) -->
     adjetivo(Adj).
 
 gadj(gadj(Participio, GP)) -->
+    participio(Participio),
+    gp_simple(GP).
+% ---------------------------------------------------------
+% GRUPO ADJETIVAL COMO COMPLEMENTO VERBAL
+% ---------------------------------------------------------
+%
+% No se permiten adjetivos simples como complemento verbal:
+%
+%   * aumenta ... anterior
+%   * tienen ... debiles
+%
+% Sí se conservan grupos adjetivales complejos, por si aparecen
+% como predicativos o estructuras participiales:
+%
+%   muy breve
+%   dividida en partes iguales
+%
+% =========================================================
+
+gadj_verbal(gadj(GAdv, Adj)) -->
+    gadv(GAdv),
+    adjetivo(Adj).
+
+gadj_verbal(gadj(Participio, GP)) -->
+    participio(Participio),
+    gp_simple(GP).
+
+% =========================================================
+% GRUPO ADJETIVAL COMO EXTENSION NOMINAL
+% =========================================================
+%
+% Solo se permiten como extensiones nominales los grupos
+% adjetivales complejos.
+%
+% Los adjetivos simples pospuestos se analizan dentro del
+% nucleo nominal:
+%
+%   las notas musicales
+%   la figura anterior
+%   una linea curva
+%
+% En cambio, se mantienen como extensiones casos como:
+%
+%   las llaves mas usuales
+%   tiempo dividida en partes iguales
+%
+% Esto evita ambigüedades espurias.
+% =========================================================
+
+gadj_extension(gadj(GAdv, Adj)) -->
+    gadv(GAdv),
+    adjetivo(Adj).
+
+gadj_extension(gadj(Participio, GP)) -->
     participio(Participio),
     gp_simple(GP).
 
