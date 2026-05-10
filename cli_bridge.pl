@@ -33,7 +33,7 @@ analizar_tokens_bridge(Tokens, Arbol, Tipo, Rasgos) :-
     !.
 
 % =========================================================
-% CLASIFICACION ROBUSTA
+% CLASIFICACION AUXILIAR PARA LA INTERFAZ
 % =========================================================
 
 bridge_clasificar_arbol(Arbol, Tipo) :-
@@ -59,7 +59,7 @@ bridge_clasificar_arbol(o(_, _), simple) :-
 bridge_clasificar_arbol(_, desconocida).
 
 % =========================================================
-% RASGOS ROBUSTOS
+% EXTRACCION DE RASGOS PARA LA SALIDA DE TERMINAL
 % =========================================================
 
 bridge_rasgos_arbol(Arbol, Rasgos) :-
@@ -295,13 +295,8 @@ terminos_a_tokens([A|As], Tokens) :-
 % Conversion de lista de tokens a texto
 % ---------------------------------------------------------
 %
-% Version compatible sin replace_string/4.
-% Evita el error:
-%
-%   Unknown procedure: replace_string/4
-%
-% Une los tokens dejando espacio normal, salvo antes de
-% signos como coma, dos puntos o punto y coma.
+% Une los tokens en una cadena, respetando los signos de
+% puntuacion que no requieren espacio previo.
 % ---------------------------------------------------------
 
 tokens_a_texto([], "") :-
