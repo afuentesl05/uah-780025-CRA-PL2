@@ -804,3 +804,454 @@ pertenece(X, [X|_]).
 
 pertenece(X, [_|R]) :-
     pertenece(X, R).
+
+
+
+
+
+
+% =========================================================
+% ASIGNACION DE FUNCIONES SINTACTICAS
+% =========================================================
+%
+% Esta seccion no modifica la gramatica DCG.
+%
+% La gramatica construye arboles de constituyentes:
+%
+%   o(suj(GN), pred(GV))
+%   gn(...)
+%   gv(...)
+%   gp(...)
+%
+% Esta capa interpreta esos constituyentes desde el punto de
+% vista funcional:
+%
+%   sujeto
+%   nucleo_verbal
+%   atributo
+%   complemento_directo
+%   complemento_indirecto
+%   complemento_regimen
+%   complemento_circunstancial_lugar
+%   complemento_circunstancial_modo
+%
+% Es una mejora posterior al analisis sintactico: primero se
+% reconoce la estructura, despues se etiquetan sus funciones.
+% =========================================================
+
+
+% ---------------------------------------------------------
+% funciones_oracion(+Arbol, -Funciones)
+% ---------------------------------------------------------
+%
+% Devuelve una lista de funciones sintacticas detectadas en
+% un arbol ya construido por la gramatica.
+%
+% Ejemplo:
+%
+%   ?- analizar_id(20, Arbol),
+%      funciones_oracion(Arbol, Funciones).
+%
+% Posible salida:
+%
+%   Funciones = [
+%       funcion(sujeto, gn(...)),
+%       funcion(nucleo_verbal, v(corresponden)),
+%       funcion(complemento_regimen, gp(...))
+%   ].
+% ---------------------------------------------------------
+
+funciones_oracion(Arbol, Funciones) :-
+    findall(
+        Funcion,
+        funcion_sintactica(Arbol, Funcion),
+        Funciones0
+    ),
+    quitar_repetidos(Funciones0, Funciones).
+
+
+% ---------------------------------------------------------
+% funciones_tokens(+Tokens, -Funciones, -Arbol)
+% ---------------------------------------------------------
+%
+% Analiza una lista de tokens y devuelve tanto el arbol como
+% las funciones sintacticas.
+% ---------------------------------------------------------
+
+funciones_tokens(Tokens, Funciones, Arbol) :-
+    phrase(oracion(Arbol), Tokens),
+    funciones_oracion(Arbol, Funciones).
+
+
+% ---------------------------------------------------------
+% funciones_id(+Id, -Funciones, -Arbol)
+% ---------------------------------------------------------
+%
+% Version comoda para trabajar con el corpus.
+% ---------------------------------------------------------
+
+funciones_id(Id, Funciones, Arbol) :-
+    oracion(Id, Tokens),
+    funciones_tokens(Tokens, Funciones, Arbol).
+
+
+% =========================================================
+% REGLAS PRINCIPALES DE FUNCIONES
+% =========================================================
+
+% ---------------------------------------------------------
+% SUJETO
+% ---------------------------------------------------------
+%
+% En una oracion simple:
+%
+%   o(suj(GN), pred(GV))
+%
+% el sujeto es directamente el termino que aparece dentro de
+% suj(...).
+%
+% En oraciones impersonales con "hay" se conserva la marca
+% impersonal.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(sujeto, Sujeto)) :-
+    predicado_funcional(Arbol, Sujeto, _GV).
+
+
+% ---------------------------------------------------------
+% NUCLEO VERBAL
+% ---------------------------------------------------------
+%
+% El nucleo verbal es el verbo simple:
+%
+%   v(toma)
+%
+% o el verbo compuesto/pronominal:
+%
+%   vc(v(se), v(toma))
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(nucleo_verbal, Nucleo)) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, Nucleo, _PreAdvs, _Complementos).
+
+
+% ---------------------------------------------------------
+% MODIFICADOR PREVERBAL
+% ---------------------------------------------------------
+%
+% Son adverbios que aparecen antes del nucleo verbal:
+%
+%   se toma ordinariamente como...
+%
+% En el arbol aparecen dentro de la primera posicion del gv:
+%
+%   gv([gadv(adv(ordinariamente))], ...)
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(modificador_preverbal, GAdv)) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, _Nucleo, PreAdvs, _Complementos),
+    pertenece(GAdv, PreAdvs).
+
+
+% ---------------------------------------------------------
+% ATRIBUTO
+% ---------------------------------------------------------
+%
+% Con verbos copulativos "ser":
+%
+%   La armonia es el conjunto de varios sonidos.
+%   Las notas musicales son siete.
+%
+% El GN o GAdj posterior al verbo funciona como atributo.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(atributo, Atributo)) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, Nucleo, _PreAdvs, Complementos),
+    verbo_copulativo(Nucleo),
+    complemento_atributivo(Complementos, Atributo).
+
+
+% ---------------------------------------------------------
+% COMPLEMENTO DIRECTO
+% ---------------------------------------------------------
+%
+% Se considera complemento directo el primer grupo nominal
+% posterior a un verbo no copulativo.
+%
+% Ejemplos:
+%
+%   El pentagrama tiene cinco lineas y cuatro espacios.
+%   El tono toma el nombre de la primera nota...
+%
+% En cambio, con "ser" ese GN se analiza como atributo.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(complemento_directo, gn(GN))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, Nucleo, _PreAdvs, Complementos),
+    \+ verbo_copulativo(Nucleo),
+    pertenece(gn(GN), Complementos).
+
+
+% ---------------------------------------------------------
+% COMPLEMENTO DE REGIMEN
+% ---------------------------------------------------------
+%
+% Un GP se considera complemento de regimen cuando su
+% preposicion esta exigida o prevista por el verbo segun
+% restricciones.pl:
+%
+%   corresponden a ...
+%   se dividen en ...
+%   sirve para ...
+%   sirve de ...
+%   se compone de ...
+%   se usa para ...
+%
+% Esta decision conecta la asignacion funcional con las
+% restricciones lexico-sintacticas ya implementadas.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(complemento_regimen, gp(GP))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, Nucleo, _PreAdvs, Complementos),
+    pertenece(gp(GP), Complementos),
+    gp_regido_por_verbo(Nucleo, GP).
+
+
+% ---------------------------------------------------------
+% COMPLEMENTO INDIRECTO
+% ---------------------------------------------------------
+%
+% Se detecta como GP introducido por "a" o "al", pero solo si
+% esa preposicion no esta ya exigida por el verbo.
+%
+% Esto evita confundir:
+%
+%   corresponden a diversas notas
+%
+% con un complemento indirecto, ya que "corresponder a" es una
+% construccion regida por el verbo.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(complemento_indirecto, gp(GP))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, Nucleo, _PreAdvs, Complementos),
+    pertenece(gp(GP), Complementos),
+    gp_tiene_prep(GP, Prep),
+    prep_complemento_indirecto(Prep),
+    \+ gp_regido_por_verbo(Nucleo, GP).
+
+
+% ---------------------------------------------------------
+% COMPLEMENTO CIRCUNSTANCIAL DE LUGAR
+% ---------------------------------------------------------
+%
+% Se detecta en dos casos:
+%
+% 1. Grupo adverbial locativo:
+%
+%      debajo de las lineas
+%
+% 2. Grupo preposicional locativo:
+%
+%      en el pentagrama
+%      en cuarta linea
+%
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(complemento_circunstancial_lugar, gadv(GAdv))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, _Nucleo, _PreAdvs, Complementos),
+    pertenece(gadv(GAdv), Complementos),
+    gadv_locativo(GAdv).
+
+
+funcion_sintactica(Arbol, funcion(complemento_circunstancial_lugar, gp(GP))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, _Nucleo, _PreAdvs, Complementos),
+    pertenece(gp(GP), Complementos),
+    gp_locativo_funcional(GP).
+
+
+% ---------------------------------------------------------
+% COMPLEMENTO CIRCUNSTANCIAL DE MODO
+% ---------------------------------------------------------
+%
+% Se detectan algunos adverbios de modo del corpus:
+%
+%   bien
+%   igual
+%   ordinariamente
+%
+% No se fuerza esta lectura para todos los adverbios porque
+% algunos, como "tambien", funcionan mejor como modificadores
+% discursivos o aditivos.
+% ---------------------------------------------------------
+
+funcion_sintactica(Arbol, funcion(complemento_circunstancial_modo, gadv(GAdv))) :-
+    predicado_funcional(Arbol, _Sujeto, GV),
+    gv_funcional(GV, _Nucleo, _PreAdvs, Complementos),
+    pertenece(gadv(GAdv), Complementos),
+    gadv_modo(GAdv).
+
+
+% =========================================================
+% PREDICADOS FUNCIONALES
+% =========================================================
+%
+% predicado_funcional(+Arbol, -Sujeto, -GV)
+%
+% Permite recorrer tanto:
+%
+%   - oraciones principales
+%   - subordinadas de relativo
+%
+% En una relativa:
+%
+%   linea curva que une a dos notas
+%
+% el sujeto funcional de "une" se recupera a partir del
+% antecedente nominal "linea curva".
+% =========================================================
+
+predicado_funcional(Arbol, Sujeto, GV) :-
+    sub_term(o(suj(Sujeto), pred(GV)), Arbol).
+
+predicado_funcional(Arbol, gn(BaseLimpia, ExtsLimpias), GVRel) :-
+    sub_term(gn(Base, Exts), Arbol),
+    pertenece(or(or(_Rel, GVRel)), Exts),
+    quitar_relativas_term(gn(Base, Exts), gn(BaseLimpia, ExtsLimpias)).
+
+
+% =========================================================
+% GRUPO VERBAL FUNCIONAL
+% =========================================================
+%
+% Normaliza grupos verbales simples y coordinados para poder
+% extraer siempre:
+%
+%   - nucleo verbal
+%   - adverbios preverbales
+%   - complementos
+% =========================================================
+
+gv_funcional(gv(PreAdvs, Nucleo, Complementos), Nucleo, PreAdvs, Complementos).
+
+gv_funcional(gv_coord(GV1, _, _), Nucleo, PreAdvs, Complementos) :-
+    gv_funcional(GV1, Nucleo, PreAdvs, Complementos).
+
+gv_funcional(gv_coord(_, _, GV2), Nucleo, PreAdvs, Complementos) :-
+    gv_funcional(GV2, Nucleo, PreAdvs, Complementos).
+
+
+% =========================================================
+% TIPOS DE COMPLEMENTOS
+% =========================================================
+
+verbo_copulativo(v(es)).
+verbo_copulativo(v(son)).
+
+verbo_copulativo(vc(_, v(es))).
+verbo_copulativo(vc(_, v(son))).
+
+
+complemento_atributivo(Complementos, gn(GN)) :-
+    pertenece(gn(GN), Complementos).
+
+complemento_atributivo(Complementos, gadj(GAdj)) :-
+    pertenece(gadj(GAdj), Complementos).
+
+
+% =========================================================
+% GRUPOS PREPOSICIONALES FUNCIONALES
+% =========================================================
+
+gp_regido_por_verbo(Nucleo, GP) :-
+    verbo_lexema(Nucleo, Verbo),
+    gp_tiene_prep(GP, Prep),
+    admite_gp_verbal(Verbo, Prep).
+
+
+gp_tiene_prep(gp(prep(Prep), _), Prep).
+
+gp_tiene_prep(gp_coord(GP1, _, _), Prep) :-
+    gp_tiene_prep(GP1, Prep).
+
+gp_tiene_prep(gp_coord(_, _, GP2), Prep) :-
+    gp_tiene_prep(GP2, Prep).
+
+
+prep_complemento_indirecto(a).
+prep_complemento_indirecto(al).
+
+
+% ---------------------------------------------------------
+% GP locativo funcional
+% ---------------------------------------------------------
+
+gp_locativo_funcional(gp(prep(en), Termino)) :-
+    termino_locativo(Termino).
+
+gp_locativo_funcional(gp_coord(GP1, _, _)) :-
+    gp_locativo_funcional(GP1).
+
+gp_locativo_funcional(gp_coord(_, _, GP2)) :-
+    gp_locativo_funcional(GP2).
+
+
+termino_locativo(Termino) :-
+    nombre_canonico_funcional(Termino, pentagrama).
+
+termino_locativo(Termino) :-
+    nombre_canonico_funcional(Termino, linea).
+
+termino_locativo(Termino) :-
+    nombre_canonico_funcional(Termino, espacio).
+
+termino_locativo(Termino) :-
+    nombre_canonico_funcional(Termino, posicion).
+
+
+% =========================================================
+% GRUPOS ADVERBIALES FUNCIONALES
+% =========================================================
+
+gadv_locativo(gadv_loc(_, _)).
+
+
+gadv_modo(gadv(adv(bien))).
+
+gadv_modo(gadv(adv(igual))).
+
+gadv_modo(gadv(adv(ordinariamente))).
+
+
+% =========================================================
+% EXTRACCION FUNCIONAL DE NOMBRES
+% =========================================================
+
+nombre_canonico_funcional(Termino, Canonico) :-
+    sub_term(n(N), Termino),
+    canon(N, Canonico).
+
+
+% =========================================================
+% UTILIDAD LOCAL PARA ELIMINAR REPETIDOS
+% =========================================================
+
+quitar_repetidos(Lista, SinRepetidos) :-
+    quitar_repetidos(Lista, [], SinRepetidos).
+
+quitar_repetidos([], _, []).
+
+quitar_repetidos([X|Xs], Vistos, Resultado) :-
+    pertenece(X, Vistos),
+    !,
+    quitar_repetidos(Xs, Vistos, Resultado).
+
+quitar_repetidos([X|Xs], Vistos, [X|Resultado]) :-
+    quitar_repetidos(Xs, [X|Vistos], Resultado).

@@ -15,6 +15,8 @@
 :- ensure_loaded('conjunto_oraciones.pl').
 :- ensure_loaded('sintactico.pl').
 :- ensure_loaded('ambiguedad.pl').
+:- ensure_loaded('semantico.pl').
+:- ensure_loaded('deteccion.pl').
 
 :- use_module('draw.pl').
 :- ensure_loaded('adaptador_draw.pl').
